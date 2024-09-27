@@ -3,6 +3,7 @@ package auth
 import (
 	"database/sql"
 	"log"
+	"strings"
 
 	"github.com/bigbr41n/GFTP-server/internal/config"
 	_ "github.com/mattn/go-sqlite3"
@@ -47,6 +48,10 @@ func (sq *SQLiteAuth) Close() error {
 func (sq *SQLiteAuth) Authenticate(username, password string) (*User, bool) {
 	var user User
 	var hashedPassword string
+
+	// Trim whitespace from the username and password to prevent errors
+	username = strings.TrimSpace(username)
+	password = strings.TrimSpace(password)
 
 	// Fetch the hashed password from the database
 	err := sq.db.QueryRow("SELECT id, username, password, ftpRoot FROM users WHERE username = ?", username).Scan(&user.ID, &user.Username, &hashedPassword, &user.FTPRoot)
