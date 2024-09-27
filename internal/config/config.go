@@ -5,7 +5,7 @@ import (
 )
 
 type Config struct {
-	listenAddr 		string
+	ListenAddr 		string
 	FTPRoot			string
 	DBpath 			string	
 }
@@ -14,7 +14,7 @@ type Config struct {
 
 func Load() (*Config, error) {
 	config := &Config{
-        listenAddr:     getEnv("LISTEN_ADDR" , ":2121"), 
+        ListenAddr:     getEnv("LISTEN_ADDR" , ":2121"), 
         FTPRoot:        getEnv("FTP_ROOT", "./"),
         DBpath:         getEnv("DB_PATH", "./ftp.db"),
     }
