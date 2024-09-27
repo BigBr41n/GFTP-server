@@ -12,14 +12,14 @@ type Config struct {
 
 
 
-func Load() (*Config, error) {
+func Load() *Config {
 	config := &Config{
         ListenAddr:     getEnv("LISTEN_ADDR" , ":2121"), 
         FTPRoot:        getEnv("FTP_ROOT", "./"),
         DBpath:         getEnv("DB_PATH", "./ftp.db"),
     }
 
-    return config, nil
+    return config
 }
 
 
