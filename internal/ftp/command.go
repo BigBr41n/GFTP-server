@@ -62,6 +62,10 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.handleGET(strings.TrimSpace(command[3:]))
 		case strings.HasPrefix(command, "PWD"):
 			ftu.handlePWD()
+		case strings.HasPrefix(command, "QUIT"):
+			ftu.writeResponse("221 Goodbye.\r\n")
+			ftu.conn.Close()
+            return
 		default:
 			ftu.writeResponse("500 Unknown command.\r\n")
 		}
@@ -163,7 +167,7 @@ func (ftu *FTPuser) handlePWD() {
 
 // handleRM handles the RM (remove file) command
 func (ftu *FTPuser) handleRM(path string) {
-	fullPath := filepath.Join(ftu.FTPRoot, path)
+	fullPath := filepath.Join(ftu.currentDir, path)
 	err := os.Remove(fullPath)
 	if err != nil {
 		ftu.writeResponse(fmt.Sprintf("Error removing file: %v\r\n", err))
