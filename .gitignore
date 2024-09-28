@@ -9,6 +9,9 @@
 *.out
 *.o
 
+# databases
+*.db
+
 # Test binary files
 *.test
 
@@ -45,3 +48,5 @@ cpu.out
 go.sum
 go.mod
 
+
+.env
