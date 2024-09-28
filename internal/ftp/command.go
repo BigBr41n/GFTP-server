@@ -60,8 +60,8 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.handlePUT(strings.TrimSpace(command[3:]))
 		case strings.HasPrefix(command, "GET"):
 			ftu.handleGET(strings.TrimSpace(command[3:]))
-		//case strings.HasPrefix(command, "PWD"):
-		//	ftu.handlePWD()
+		case strings.HasPrefix(command, "PWD"):
+			ftu.handlePWD()
 		default:
 			ftu.writeResponse("500 Unknown command.\r\n")
 		}
@@ -132,6 +132,33 @@ func (ftu *FTPuser) handleCD(path string) {
     // Respond with the new relative path
     ftu.writeResponse(fmt.Sprintf("250 Directory changed to %s\r\n", relativePath))
 }
+
+
+
+
+// handlePWD handles the PWD (Print Working Directory) command
+func (ftu *FTPuser) handlePWD() {
+    // Use ftu.currentDir instead of os.Getwd()
+    relativePath, err := filepath.Rel(ftu.FTPRoot, ftu.currentDir)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("550 Error getting relative path: %v\r\n", err))
+        return
+    }
+
+    // Ensure the path always starts with a slash
+    if !strings.HasPrefix(relativePath, "/") {
+        relativePath = "/" + relativePath
+    }
+
+    // If the relative path is empty, it means we're at the root
+    if relativePath == "/" {
+        relativePath = "/" + ftu.Username
+    }
+
+    ftu.writeResponse(fmt.Sprintf("257 \"%s\" is the current directory\r\n", relativePath))
+}
+
+
 
 
 // handleRM handles the RM (remove file) command
