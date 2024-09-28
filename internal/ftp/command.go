@@ -13,6 +13,7 @@ type FTPuser struct {
 	conn      net.Conn
 	Username  string
 	FTPRoot   string
+	currentDir string
 }
 
 type FTPhandler interface {
@@ -28,10 +29,17 @@ func NewCommandsHandler(FTPRoot, username string, conn net.Conn) FTPhandler {
 		conn:     conn,
 		Username: username,
 		FTPRoot:  absRoot,
+		currentDir: absRoot,
 	}
 }
 
 func (ftu *FTPuser) HandleCommands() {
+	//change the dir to user dir
+	err := os.Chdir(ftu.FTPRoot)
+    if err!= nil {
+        ftu.writeResponse(fmt.Sprintf("Error changing directory: %v\r\n", err))
+        return
+    }
 	for {
 		// Read the command from the client
 		command, err := ftu.readInput("ftp> ")
@@ -52,6 +60,8 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.handlePUT(strings.TrimSpace(command[3:]))
 		case strings.HasPrefix(command, "GET"):
 			ftu.handleGET(strings.TrimSpace(command[3:]))
+		//case strings.HasPrefix(command, "PWD"):
+		//	ftu.handlePWD()
 		default:
 			ftu.writeResponse("500 Unknown command.\r\n")
 		}
@@ -71,20 +81,55 @@ func (ftu *FTPuser) handleLS() {
 	}
 }
 
+
+
 // handleCD handles the CD (change directory) command
 func (ftu *FTPuser) handleCD(path string) {
-	// Resolve the new directory path
-	newPath := filepath.Join(ftu.FTPRoot, path)
-	absPath, err := filepath.Abs(newPath)
-	if err != nil || !strings.HasPrefix(absPath, ftu.FTPRoot) {
-		ftu.writeResponse("500 Invalid directory.\r\n")
+    // Resolve the new directory path
+    newPath := filepath.Join(ftu.currentDir, path)
+    absPath, err := filepath.Abs(newPath)
+    if err != nil {
+        ftu.writeResponse("500 Invalid directory.\r\n")
+        return
+    }
+
+    // Ensure the new path is within the user's FTP root directory
+    if !strings.HasPrefix(absPath, ftu.FTPRoot) {
+        ftu.writeResponse("550 Access denied.\r\n")
+        return
+    }
+
+    // Check if the new directory exists and is indeed a directory
+    stat, err := os.Stat(absPath)
+    if os.IsNotExist(err) || !stat.IsDir() {
+        ftu.writeResponse("550 Directory does not exist or is not a directory.\r\n")
+        return
+    }
+
+	if err := os.Chdir(absPath); err != nil {
+		ftu.writeResponse("500 Failed to change directory.\r\n")
 		return
 	}
 
-	// Change directory
-	ftu.FTPRoot = absPath
-	ftu.writeResponse(fmt.Sprintf("Directory changed to %s\r\n", absPath))
+    // Change directory
+    ftu.currentDir = absPath
+    relativePath, err := filepath.Rel(ftu.FTPRoot, absPath)
+    if err != nil {
+        ftu.writeResponse("500 Failed to determine relative path.\r\n")
+        return
+    }
+
+    // Ensure the relative path always starts with a slash
+    if !strings.HasPrefix(relativePath, "/") {
+        relativePath = "/" + relativePath
+    }
+
+    // Respond with the new relative path
+    ftu.writeResponse(fmt.Sprintf("250 Directory changed to %s\r\n", relativePath))
 }
+
+
+
 
 // handleRM handles the RM (remove file) command
 func (ftu *FTPuser) handleRM(path string) {
@@ -125,6 +170,8 @@ func (ftu *FTPuser) handlePUT(filename string) {
 	}
 	ftu.writeResponse("File upload complete.\r\n")
 }
+
+
 
 // handleGET handles the GET (download file) command
 func (ftu *FTPuser) handleGET(filename string) {
