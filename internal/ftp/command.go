@@ -71,11 +71,16 @@ func (ftu *FTPuser) HandleCommands() {
 // handleLS handles the LS (list directory) command
 func (ftu *FTPuser) handleLS() {
 	ftu.writeResponse("Listing files...\r\n")
-	files, err := os.ReadDir(ftu.FTPRoot)
+	files, err := os.ReadDir(ftu.currentDir)
 	if err != nil {
 		ftu.writeResponse(fmt.Sprintf("Error reading directory: %v\r\n", err))
 		return
 	}
+	//check if no files exist
+	if len(files) == 0 {
+        ftu.writeResponse("No files found in this directory.\r\n")
+        return
+    }
 	for _, file := range files {
 		ftu.writeResponse(file.Name() + "\r\n")
 	}
@@ -127,8 +132,6 @@ func (ftu *FTPuser) handleCD(path string) {
     // Respond with the new relative path
     ftu.writeResponse(fmt.Sprintf("250 Directory changed to %s\r\n", relativePath))
 }
-
-
 
 
 // handleRM handles the RM (remove file) command
