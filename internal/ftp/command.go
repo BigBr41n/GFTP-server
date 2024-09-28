@@ -176,7 +176,7 @@ func (ftu *FTPuser) handleRM(path string) {
 func (ftu *FTPuser) handlePUT(filename string) {
 	ftu.writeResponse(fmt.Sprintf("Ready to receive file %s...\r\n", filename))
 
-	file, err := os.Create(filepath.Join(ftu.FTPRoot, filename))
+	file, err := os.Create(filepath.Join(ftu.currentDir, filename))
 	if err != nil {
 		ftu.writeResponse(fmt.Sprintf("Error creating file: %v\r\n", err))
 		return
