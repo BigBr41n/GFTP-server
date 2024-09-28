@@ -176,7 +176,7 @@ func (ftu *FTPuser) handleRM(path string) {
 func (ftu *FTPuser) handlePUT(filename string) {
 	ftu.writeResponse(fmt.Sprintf("Ready to receive file %s...\r\n", filename))
 
-	file, err := os.Create(filepath.Join(ftu.FTPRoot, filename))
+	file, err := os.Create(filepath.Join(ftu.currentDir, filename))
 	if err != nil {
 		ftu.writeResponse(fmt.Sprintf("Error creating file: %v\r\n", err))
 		return
@@ -205,32 +205,38 @@ func (ftu *FTPuser) handlePUT(filename string) {
 
 // handleGET handles the GET (download file) command
 func (ftu *FTPuser) handleGET(filename string) {
-	fullPath := filepath.Join(ftu.FTPRoot, filename)
-	file, err := os.Open(fullPath)
-	if err != nil {
-		ftu.writeResponse(fmt.Sprintf("Error opening file: %v\r\n", err))
-		return
-	}
-	defer file.Close()
+    fullPath := filepath.Join(ftu.currentDir, filename)
+    
+    // Check if file exists and get its size
+    fileInfo, err := os.Stat(fullPath)
+    if err != nil {
+        if os.IsNotExist(err) {
+            ftu.writeResponse("550 File not found.\r\n")
+        } else {
+            ftu.writeResponse(fmt.Sprintf("550 Error accessing file: %v\r\n", err))
+        }
+        return
+    }
 
-	ftu.writeResponse(fmt.Sprintf("Starting file download: %s\r\n", filename))
+    // Open the file
+    file, err := os.Open(fullPath)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("550 Error opening file: %v\r\n", err))
+        return
+    }
+    defer file.Close()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := file.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			ftu.writeResponse(fmt.Sprintf("Error reading file: %v\r\n", err))
-			return
-		}
-		if _, err := ftu.conn.Write(buffer[:n]); err != nil {
-			ftu.writeResponse(fmt.Sprintf("Error sending file: %v\r\n", err))
-			return
-		}
-	}
-	ftu.writeResponse("File download complete.\r\n")
+    // Inform the client that the file transfer is about to begin
+    ftu.writeResponse(fmt.Sprintf("150 Opening BINARY mode data connection for %s (%d bytes).\r\n", filename, fileInfo.Size()))
+
+    // Send the file content
+    _, err = io.Copy(ftu.conn, file)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("550 Error sending file: %v\r\n", err))
+        return
+    }
+
+    ftu.writeResponse("\n 226 Transfer complete.\r\n")
 }
 
 func (ftu *FTPuser) readInput(prompt string) (string, error) {
