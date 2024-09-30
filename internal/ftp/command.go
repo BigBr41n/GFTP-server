@@ -1,6 +1,7 @@
 package ftp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -10,39 +11,48 @@ import (
 )
 
 type FTPuser struct {
-	conn      net.Conn
-	Username  string
-	FTPRoot   string
-	currentDir string
+	conn      		net.Conn
+	Username  		string
+	userFTPRoot  	string
+	serverFTPRoot  	string
+	currentDir 		string
 }
 
 type FTPhandler interface {
 	HandleCommands()
 }
 
-func NewCommandsHandler(FTPRoot, username string, conn net.Conn) FTPhandler {
-	absRoot, err := filepath.Abs(FTPRoot)
-	if err != nil {
-		absRoot = FTPRoot // fallback to the given path
-	}
+func NewCommandsHandler(userFTPRoot,serverFtpRoot,username string, conn net.Conn) FTPhandler {
 	return &FTPuser{
 		conn:     conn,
 		Username: username,
-		FTPRoot:  absRoot,
-		currentDir: absRoot,
+		userFTPRoot:  userFTPRoot,
+		serverFTPRoot: serverFtpRoot,
+		currentDir: userFTPRoot,
 	}
 }
 
 func (ftu *FTPuser) HandleCommands() {
-	//change the dir to user dir
-	err := os.Chdir(ftu.FTPRoot)
-    if err!= nil {
-        ftu.writeResponse(fmt.Sprintf("Error changing directory: %v\r\n", err))
-        return
-    }
+	defer ftu.conn.Close()
+
+	//clean up after disconnect
+	defer func(){
+		err := os.Chdir(ftu.serverFTPRoot)
+        if err!= nil {
+            fmt.Printf("Error: %v\n", err)
+        }
+	}()
+
+	//change the dir to the user dir 
+	err := os.Chdir(ftu.userFTPRoot)
+	if err != nil {
+		ftu.writeResponse("Error changing directory")
+		return
+	}
+
 	for {
 		// Read the command from the client
-		command, err := ftu.readInput("ftp> ")
+		command, err := ftu.readInput()
 		if err != nil {
 			ftu.writeResponse("500 Internal server error.\r\n")
 			return
@@ -103,7 +113,7 @@ func (ftu *FTPuser) handleCD(path string) {
     }
 
     // Ensure the new path is within the user's FTP root directory
-    if !strings.HasPrefix(absPath, ftu.FTPRoot) {
+    if !strings.HasPrefix(absPath, ftu.userFTPRoot) {
         ftu.writeResponse("550 Access denied.\r\n")
         return
     }
@@ -122,7 +132,7 @@ func (ftu *FTPuser) handleCD(path string) {
 
     // Change directory
     ftu.currentDir = absPath
-    relativePath, err := filepath.Rel(ftu.FTPRoot, absPath)
+    relativePath, err := filepath.Rel(ftu.userFTPRoot, absPath)
     if err != nil {
         ftu.writeResponse("500 Failed to determine relative path.\r\n")
         return
@@ -143,7 +153,7 @@ func (ftu *FTPuser) handleCD(path string) {
 // handlePWD handles the PWD (Print Working Directory) command
 func (ftu *FTPuser) handlePWD() {
     // Use ftu.currentDir instead of os.Getwd()
-    relativePath, err := filepath.Rel(ftu.FTPRoot, ftu.currentDir)
+    relativePath, err := filepath.Rel(ftu.userFTPRoot, ftu.currentDir)
     if err != nil {
         ftu.writeResponse(fmt.Sprintf("550 Error getting relative path: %v\r\n", err))
         return
@@ -178,7 +188,12 @@ func (ftu *FTPuser) handleRM(path string) {
 
 // handlePUT handles the PUT (upload file) command
 func (ftu *FTPuser) handlePUT(filename string) {
-	ftu.writeResponse(fmt.Sprintf("Ready to receive file %s...\r\n", filename))
+
+	var size int64 
+
+	//receive the file size from the client 
+	binary.Read(ftu.conn, binary.LittleEndian, &size)
+
 
 	file, err := os.Create(filepath.Join(ftu.currentDir, filename))
 	if err != nil {
@@ -187,20 +202,11 @@ func (ftu *FTPuser) handlePUT(filename string) {
 	}
 	defer file.Close()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := ftu.conn.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
-			return
-		}
-		if _, err := file.Write(buffer[:n]); err != nil {
-			ftu.writeResponse(fmt.Sprintf("Error writing file: %v\r\n", err))
-			return
-		}
+	//read the exact streamed size 
+	_, err = io.CopyN(file, ftu.conn, size)
+	if err != nil {
+		ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
+		return
 	}
 	ftu.writeResponse("File upload complete.\r\n")
 }
@@ -210,6 +216,10 @@ func (ftu *FTPuser) handlePUT(filename string) {
 // handleGET handles the GET (download file) command
 func (ftu *FTPuser) handleGET(filename string) {
     fullPath := filepath.Join(ftu.currentDir, filename)
+
+
+	//the var of the file size 
+	var size int64
     
     // Check if file exists and get its size
     fileInfo, err := os.Stat(fullPath)
@@ -221,6 +231,14 @@ func (ftu *FTPuser) handleGET(filename string) {
         }
         return
     }
+
+
+	//get the size of the file 
+	size = fileInfo.Size()
+
+
+	//send the size to the client 
+	binary.Write(ftu.conn, binary.LittleEndian, size);
 
     // Open the file
     file, err := os.Open(fullPath)
@@ -234,7 +252,7 @@ func (ftu *FTPuser) handleGET(filename string) {
     ftu.writeResponse(fmt.Sprintf("150 Opening BINARY mode data connection for %s (%d bytes).\r\n", filename, fileInfo.Size()))
 
     // Send the file content
-    _, err = io.Copy(ftu.conn, file)
+    _, err = io.CopyN(ftu.conn, file, size) // copy the exact size from the file (the file size itself)
     if err != nil {
         ftu.writeResponse(fmt.Sprintf("550 Error sending file: %v\r\n", err))
         return
@@ -243,11 +261,7 @@ func (ftu *FTPuser) handleGET(filename string) {
     ftu.writeResponse("\n 226 Transfer complete.\r\n")
 }
 
-func (ftu *FTPuser) readInput(prompt string) (string, error) {
-	if err := ftu.writeResponse(prompt); err != nil {
-		return "", err
-	}
-
+func (ftu *FTPuser) readInput() (string, error) {
 	buffer := make([]byte, 1024)
 	n, err := ftu.conn.Read(buffer)
 	if err != nil {

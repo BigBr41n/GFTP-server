@@ -2,6 +2,8 @@ package ftp
 
 import (
 	"net"
+	"path"
+	"path/filepath"
 
 	"github.com/bigbr41n/GFTP-server/internal/auth"
 	"github.com/bigbr41n/GFTP-server/internal/config"
@@ -44,7 +46,15 @@ func (s *Session) Server() {
 		s.user = user
 		s.conn.Write([]byte("230 User logged in, proceed.\r\n"))
 
-		handler := NewCommandsHandler(s.user.FTPRoot , s.user.Username, s.conn)
+
+		//pass the ABS path form FTPRoot of the server and the client to handle session cleanup
+		serverFtpRoot, err := filepath.Abs(s.config.FTPRoot)
+		if err != nil {
+			s.writeResponse("INTERNAL SERVER ERROR")
+            return 
+		}
+		userFtpRoot := path.Join(serverFtpRoot, s.user.FTPRoot)
+		handler := NewCommandsHandler(userFtpRoot, serverFtpRoot , s.user.Username, s.conn)
 		//handel all the commands received 
 		handler.HandleCommands()
 	} else {
