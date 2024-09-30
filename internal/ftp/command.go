@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -82,22 +83,42 @@ func (ftu *FTPuser) HandleCommands() {
 	}
 }
 
-// handleLS handles the LS (list directory) command
+
+
+// handleLS handles the LIST command (commonly used for directory listing)
 func (ftu *FTPuser) handleLS() {
-	ftu.writeResponse("Listing files...\r\n")
-	files, err := os.ReadDir(ftu.currentDir)
-	if err != nil {
-		ftu.writeResponse(fmt.Sprintf("Error reading directory: %v\r\n", err))
-		return
-	}
-	//check if no files exist
-	if len(files) == 0 {
-        ftu.writeResponse("No files found in this directory.\r\n")
+    // Read directory contents
+    files, err := os.ReadDir(ftu.currentDir)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("550 Error reading directory: %v\r\n", err))
         return
     }
-	for _, file := range files {
-		ftu.writeResponse(file.Name() + "\r\n")
-	}
+
+    // Prepare the listing
+    var listing strings.Builder
+    for _, file := range files {
+        info, err := file.Info()
+        if err != nil {
+            log.Printf("Error getting file info for %s: %v", file.Name(), err)
+            continue
+        }
+        listing.WriteString(formatFileInfo(info) + "\r\n")
+    }
+
+    // Send the listing
+    if _, err := ftu.conn.Write([]byte(listing.String())); err != nil {
+        ftu.writeResponse(fmt.Sprintf("550 Error sending directory listing: %v\r\n", err))
+        return
+    }
+}
+
+func formatFileInfo(info os.FileInfo) string {
+    // Format: <file mode> <number of links> <owner name> <group name> <file size> <time of last modification> <file/dir name>
+    return fmt.Sprintf("%s %8d %s %s",
+        info.Mode().String(),
+        info.Size(),
+        info.ModTime().Format("Jan _2 15:04"),
+        info.Name())
 }
 
 
