@@ -179,7 +179,12 @@ func (ftu *FTPuser) handleRM(path string) {
 
 // handlePUT handles the PUT (upload file) command
 func (ftu *FTPuser) handlePUT(filename string) {
-	ftu.writeResponse(fmt.Sprintf("Ready to receive file %s...\r\n", filename))
+
+	var size int64 
+
+	//receive the file size from the client 
+	binary.Read(ftu.conn, binary.LittleEndian, &size)
+
 
 	file, err := os.Create(filepath.Join(ftu.currentDir, filename))
 	if err != nil {
@@ -188,20 +193,11 @@ func (ftu *FTPuser) handlePUT(filename string) {
 	}
 	defer file.Close()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := ftu.conn.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
-			return
-		}
-		if _, err := file.Write(buffer[:n]); err != nil {
-			ftu.writeResponse(fmt.Sprintf("Error writing file: %v\r\n", err))
-			return
-		}
+	//read the exact streamed size 
+	_, err = io.CopyN(file, ftu.conn, size)
+	if err != nil {
+		ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
+		return
 	}
 	ftu.writeResponse("File upload complete.\r\n")
 }
