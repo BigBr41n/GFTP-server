@@ -1,6 +1,7 @@
 package ftp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -23,7 +24,7 @@ type FTPhandler interface {
 func NewCommandsHandler(FTPRoot, username string, conn net.Conn) FTPhandler {
 	absRoot, err := filepath.Abs(FTPRoot)
 	if err != nil {
-		absRoot = FTPRoot // fallback to the given path
+		absRoot = FTPRoot 
 	}
 	return &FTPuser{
 		conn:     conn,
@@ -42,7 +43,7 @@ func (ftu *FTPuser) HandleCommands() {
     }
 	for {
 		// Read the command from the client
-		command, err := ftu.readInput("ftp> ")
+		command, err := ftu.readInput()
 		if err != nil {
 			ftu.writeResponse("500 Internal server error.\r\n")
 			return
@@ -210,6 +211,10 @@ func (ftu *FTPuser) handlePUT(filename string) {
 // handleGET handles the GET (download file) command
 func (ftu *FTPuser) handleGET(filename string) {
     fullPath := filepath.Join(ftu.currentDir, filename)
+
+
+	//the var of the file size 
+	var size int64
     
     // Check if file exists and get its size
     fileInfo, err := os.Stat(fullPath)
@@ -221,6 +226,14 @@ func (ftu *FTPuser) handleGET(filename string) {
         }
         return
     }
+
+
+	//get the size of the file 
+	size = fileInfo.Size()
+
+
+	//send the size to the client 
+	binary.Write(ftu.conn, binary.LittleEndian, size);
 
     // Open the file
     file, err := os.Open(fullPath)
@@ -234,7 +247,7 @@ func (ftu *FTPuser) handleGET(filename string) {
     ftu.writeResponse(fmt.Sprintf("150 Opening BINARY mode data connection for %s (%d bytes).\r\n", filename, fileInfo.Size()))
 
     // Send the file content
-    _, err = io.Copy(ftu.conn, file)
+    _, err = io.CopyN(ftu.conn, file, size) // copy the exact size from the file (the file size itself)
     if err != nil {
         ftu.writeResponse(fmt.Sprintf("550 Error sending file: %v\r\n", err))
         return
@@ -243,11 +256,7 @@ func (ftu *FTPuser) handleGET(filename string) {
     ftu.writeResponse("\n 226 Transfer complete.\r\n")
 }
 
-func (ftu *FTPuser) readInput(prompt string) (string, error) {
-	if err := ftu.writeResponse(prompt); err != nil {
-		return "", err
-	}
-
+func (ftu *FTPuser) readInput() (string, error) {
 	buffer := make([]byte, 1024)
 	n, err := ftu.conn.Read(buffer)
 	if err != nil {
