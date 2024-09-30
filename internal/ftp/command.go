@@ -229,7 +229,6 @@ func (ftu *FTPuser) handlePUT(filename string) {
 		ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
 		return
 	}
-	ftu.writeResponse("File upload complete.\r\n")
 }
 
 
@@ -269,8 +268,6 @@ func (ftu *FTPuser) handleGET(filename string) {
     }
     defer file.Close()
 
-    // Inform the client that the file transfer is about to begin
-    ftu.writeResponse(fmt.Sprintf("150 Opening BINARY mode data connection for %s (%d bytes).\r\n", filename, fileInfo.Size()))
 
     // Send the file content
     _, err = io.CopyN(ftu.conn, file, size) // copy the exact size from the file (the file size itself)
@@ -278,8 +275,6 @@ func (ftu *FTPuser) handleGET(filename string) {
         ftu.writeResponse(fmt.Sprintf("550 Error sending file: %v\r\n", err))
         return
     }
-
-    ftu.writeResponse("\n 226 Transfer complete.\r\n")
 }
 
 func (ftu *FTPuser) readInput() (string, error) {
