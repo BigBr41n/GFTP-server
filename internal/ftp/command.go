@@ -58,7 +58,6 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.writeResponse("500 Internal server error.\r\n")
 			return
 		}
-
 		// Process the command
 		switch {
 		case strings.HasPrefix(command, "LS"):
@@ -207,29 +206,44 @@ func (ftu *FTPuser) handleRM(path string) {
 	ftu.writeResponse(fmt.Sprintf("File %s removed.\r\n", path))
 }
 
+
+
+
+
+
 // handlePUT handles the PUT (upload file) command
 func (ftu *FTPuser) handlePUT(filename string) {
+    // Create and open the file for writing
+    file, err := os.Create(filename)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("Error creating file: %v\r\n", err))
+        fmt.Println("the error  \n:", err);
+        return
+    }
+    defer file.Close()
+    ftu.writeResponse("File Created.\r\n")
 
-	var size int64 
+    //// Read the file size from the client
+    var size int64 
+    err = binary.Read(ftu.conn, binary.LittleEndian, &size)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("Error reading file size: %v\r\n", err))
+        return
+    }
+    ftu.writeResponse("Send file\r\n")
+    
 
-	//receive the file size from the client 
-	binary.Read(ftu.conn, binary.LittleEndian, &size)
+    // Read the exact size of the file from the client
+    _, err = io.CopyN(file, ftu.conn, size)
+    if err != nil {
+        ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
+        return
+    }
 
-
-	file, err := os.Create(filepath.Join(ftu.currentDir, filename))
-	if err != nil {
-		ftu.writeResponse(fmt.Sprintf("Error creating file: %v\r\n", err))
-		return
-	}
-	defer file.Close()
-
-	//read the exact streamed size 
-	_, err = io.CopyN(file, ftu.conn, size)
-	if err != nil {
-		ftu.writeResponse(fmt.Sprintf("Error receiving file: %v\r\n", err))
-		return
-	}
+    ftu.writeResponse(fmt.Sprintf("File %s uploaded successfully.\r\n", filename))
+    fmt.Printf("File uploaded to: %s/%s\n", ftu.currentDir,filename)
 }
+
 
 
 
