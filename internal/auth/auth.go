@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/bigbr41n/GFTP-server/internal/config"
+	"github.com/BigBr41n/GFTP-server/internal/config"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )

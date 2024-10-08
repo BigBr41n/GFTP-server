@@ -4,8 +4,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/bigbr41n/GFTP-server/internal/auth"
-	"github.com/bigbr41n/GFTP-server/internal/config"
+	"github.com/BigBr41n/GFTP-server/internal/auth"
+	"github.com/BigBr41n/GFTP-server/internal/config"
 )
 
 type Server struct {
