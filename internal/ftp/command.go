@@ -72,6 +72,8 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.handleGET(strings.TrimSpace(command[3:]))
 		case strings.HasPrefix(command, "PWD"):
 			ftu.handlePWD()
+        case strings.HasPrefix(command, "MKDIR"):
+            ftu.handleMkdir(strings.TrimSpace(command[5:]))
 		case strings.HasPrefix(command, "QUIT"):
 			ftu.writeResponse("221 Goodbye.\r\n")
 			ftu.conn.Close()
@@ -290,6 +292,39 @@ func (ftu *FTPuser) handleGET(filename string) {
         return
     }
 }
+
+
+// handle mkdir command to create a new folder (sub directory) in the current directory
+func (ftu * FTPuser) handleMkdir(folderName string) {
+    // Get all the files in the current directory 
+    files , err := os.ReadDir(ftu.currentDir)
+    if err != nil {
+        ftu.writeResponse("550 Error while creating a new directory ")
+        return 
+    }
+
+    // Check if there is a directory with the same name already
+    for _, file := range files {
+        if file.Name() == folderName && file.IsDir() {
+            ftu.writeResponse(fmt.Sprintf("Directory %s already exists", folderName))
+            return 
+        }
+    }
+
+    // If no error create a new folder in the dir 
+    err = os.Mkdir(filepath.Join(ftu.currentDir, folderName), 0755)
+    if err!= nil {
+        ftu.writeResponse("550 Error while creating a new directory ")
+        return 
+    }
+
+    // Return a feedback to the user
+    ftu.writeResponse(fmt.Sprintf("Directory %s created successfully", folderName))
+}
+
+
+
+
 
 func (ftu *FTPuser) readInput() (string, error) {
 	buffer := make([]byte, 1024)
