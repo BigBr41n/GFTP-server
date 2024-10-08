@@ -5,8 +5,8 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/bigbr41n/GFTP-server/internal/auth"
-	"github.com/bigbr41n/GFTP-server/internal/config"
+	"github.com/BigBr41n/GFTP-server/internal/auth"
+	"github.com/BigBr41n/GFTP-server/internal/config"
 )
 
 type Session struct {

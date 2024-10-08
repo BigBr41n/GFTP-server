@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/bigbr41n/GFTP-server/internal/config"
-	"github.com/bigbr41n/GFTP-server/internal/ftp"
+	"github.com/BigBr41n/GFTP-server/internal/config"
+	"github.com/BigBr41n/GFTP-server/internal/ftp"
 )
 
 func main() {
