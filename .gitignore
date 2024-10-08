@@ -44,9 +44,6 @@ profile.out
 heap.out
 cpu.out
 
-# Go modules
-go.sum
-go.mod
 
 
 .env
