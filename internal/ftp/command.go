@@ -74,6 +74,8 @@ func (ftu *FTPuser) HandleCommands() {
 			ftu.handlePWD()
         case strings.HasPrefix(command, "MKDIR"):
             ftu.handleMkdir(strings.TrimSpace(command[5:]))
+        case strings.HasPrefix(command, "DRM"):
+            ftu.handleDRM(strings.TrimSpace(command[3:]))
 		case strings.HasPrefix(command, "QUIT"):
 			ftu.writeResponse("221 Goodbye.\r\n")
 			ftu.conn.Close()
@@ -320,6 +322,34 @@ func (ftu * FTPuser) handleMkdir(folderName string) {
 
     // Return a feedback to the user
     ftu.writeResponse(fmt.Sprintf("Directory %s created successfully", folderName))
+}
+
+
+
+//handle DRM to delete a directory and its content
+func (ftu *FTPuser) handleDRM(folderName string) {
+    // Get all the files and directories in the current directory 
+    files , err := os.ReadDir(ftu.currentDir)
+    if err!= nil {
+        ftu.writeResponse("550 Error while deleting a directory ")
+        return 
+    }
+
+    // Check if there is a directory with the same name already
+    for _, file := range files {
+        if file.Name() == folderName && file.IsDir() {
+            // Delete the directory and its content recursively
+            err = os.RemoveAll(filepath.Join(ftu.currentDir, folderName))
+            if err!= nil {
+                ftu.writeResponse("550 Error while deleting a directory ")
+                return 
+            }
+
+            // Return a feedback to the user
+            ftu.writeResponse(fmt.Sprintf("Directory %s and its content deleted successfully", folderName))
+            return 
+        }
+    }
 }
 
 
