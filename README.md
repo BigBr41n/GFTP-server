@@ -3,7 +3,9 @@
 a custom FTP server based on TCP connection.
 This FTP server don't follow any FTP standers (a fully custom FTP server).
 
-## Usage
+## available commands
+
+This commands only sent from the GFTP client to interact with the server
 
 1. LS : list all files in the current directory
 2. CD : change dir to sub directory
